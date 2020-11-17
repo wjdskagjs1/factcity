@@ -19,11 +19,11 @@ const setup = function(){
     console.log(test);
   });
 
-  socket.emit('join', yourId);
-  socket.on('join', function(userId){
+  socket.emit('init', yourId);
+  socket.on('init', function(userId){
     yourId = userId;
 
-    for(let i = 0; i< userId + 1; i++){
+    for(let i = 0; i < userId + 1; i++){
       const rect = new PIXI.Rectangle(0, 0, 64, 64);
       const newTex = new PIXI.Texture(PIXI.loader.resources["spritesheet"].texture, rect);
       playerList.push(new PIXI.Sprite(newTex));
@@ -31,38 +31,24 @@ const setup = function(){
     }
   });
 
-  socket.on('load', function(players){
-    if(players.length > playerList.length){
-      for(let i = playerList.length; i< players.length + 1; i++){
-        const rect = new PIXI.Rectangle(0, 0, 64, 64);
-        const newTex = new PIXI.Texture(PIXI.loader.resources["spritesheet"].texture, rect);
-        playerList.push(new PIXI.Sprite(newTex));
-        stage.addChild(playerList[i]);
-      }
-    }
-    if(players.length < playerList.length){
-      playerList = [];
-      stage.removeChildren();
-      for(let i = 0; i< players.length + 1; i++){
-        const rect = new PIXI.Rectangle(0, 0, 64, 64);
-        const newTex = new PIXI.Texture(PIXI.loader.resources["spritesheet"].texture, rect);
-        playerList.push(new PIXI.Sprite(newTex));
-        stage.addChild(playerList[i]);
-      }
-    }
+  socket.on('join', function(info){
+      const rect = new PIXI.Rectangle(0, 0, 64, 64);
+      const newTex = new PIXI.Texture(PIXI.loader.resources["spritesheet"].texture, rect);
+      playerList.push(new PIXI.Sprite(newTex));
+      stage.addChild(playerList[info.userId]);
+  });
 
-    players.forEach((player)=>{
-      const {userId} = player;
-      playerList[userId].x = player.x;
-      playerList[userId].y = player.y;
-      
-    });
-    console.log(playerList);
-    renderer.render(stage);
+  socket.on('move', function(playerInfo){
+    const {userId, x, y} = playerInfo;
+    playerList[userId].x = x;
+    playerList[userId].y = y;
   });
 
   window.addEventListener("keydown",onKeyDown,false);
   window.addEventListener("keyup",onKeyUp,false);
+  window.addEventListener("beforeunload", function (event) {
+    socket.emit('leave', yourId);
+  }.bind(socket));
   function onKeyDown(e){
     keyDown[e.keyCode] = true;
   }
@@ -100,11 +86,14 @@ function animationLoop() {
         vx = 10;
     }
     if(keyDown[37] || keyDown[38] || keyDown[39] || keyDown[40]){
+      playerList[yourId].x += vx;
+      playerList[yourId].y += vy;
       socket.emit('move', {userId: yourId, x: you.x + vx, y: you.y + vy});
     }
 
   // a function from Pixi
   requestAnimationFrame(animationLoop);
+  renderer.render(stage);
 };
 
 //window.addEventListener("load",setup);

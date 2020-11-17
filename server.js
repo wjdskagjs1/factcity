@@ -11,23 +11,25 @@ let playerList = [];
 const speed = 10;
 
 io.on("connection", async function(socket) {
-    await socket.on('join', (userId) => {
-        if(userId < 0){
-            playerList.push({userId:-1, x:0, y:0});
-            playerList[playerList.length - 1].userId = playerList.length - 1;
-            socket.emit('join', playerList.length - 1);
-        }
-    });
-    const loadInterval = setInterval(()=>{
-        io.emit('load', playerList);
-    }, 10);
+    socket.on('init', (userId) => {
+        playerList.push({userId:playerList.length, x:0, y:0});
+        const newId = playerList.length - 1;
 
+        socket.emit('init', newId);
+        socket.broadcast.emit('join', playerList[newId]);
+        
+    });
     socket.on('move', (info) => {
         const {userId, x, y} = info;
         
         if(userId < 0) return;
         playerList[userId].x = x;
         playerList[userId].y = y;
+        socket.broadcast.emit('move', playerList[userId]);
+    });
+
+    socket.on('leave', (userId)=>{
+        playerList.splice(userId, 1);
     });
 });
 
