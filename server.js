@@ -33,6 +33,6 @@ io.on("connection", async function(socket) {
     });
 });
 
-server.listen(3000, function(){
+server.listen(80, function(){
     console.log("서버 실행중")
 });
