@@ -1,61 +1,36 @@
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+const express = require('express');
+const fs = require('fs');
+const { emit } = require('process');
+const app = express();
+const server  = require("http").createServer(app);
+const io = require("socket.io")(server);
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
-
-var app = express();
-
-var http = require('http').createServer(app);
-var io = require('socket.io')(http);
+app.use(express.static('public'));
 
 let playerList = [];
+const speed = 10;
 
-app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
-
-io.on('connection', (socket) => {
-    console.log('a user connected');
-
-    socket.on('newPlayer', async (userId) => {
-
-        const PIXI = require('pixi-shim');
-        // set a rectangle frame for skeleton spritesheet 
-        // (x, y, height, width)
-
-        PIXI.add("spritesheet", "asset/BODY_skeleton.png");
-
-        const rect = PIXI.Rectangle(0, 0, 64, 64);
-        const {texture} = PIXI.loader.resources["spritesheet"];
-        texture.frame = rect;
-        const sprite = PIXI.Sprite(texture);
-
-        // highly recommend to use scale to change frame size
-        sprite.scale.set(2, 2); 
-        // these two lines are for eventlistener later
-        sprite.vx = 10;
-        sprite.vy = 10;
-        playerList[userId] = {rect:rect, sprite:sprite};
+io.on("connection", async function(socket) {
+    await socket.on('join', (userId) => {
+        if(userId < 0){
+            playerList.push({userId:-1, x:0, y:0});
+            playerList[playerList.length - 1].userId = playerList.length - 1;
+            socket.emit('join', playerList.length - 1);
+        }
     });
+    const loadInterval = setInterval(()=>{
+        io.emit('load', playerList);
+    }, 10);
 
-
-    socket.on('savePlayer', (user) => {
-        playerList[user.userId] = user.player;
+    socket.on('move', (info) => {
+        const {userId, x, y} = info;
+        
+        if(userId < 0) return;
+        playerList[userId].x = x;
+        playerList[userId].y = y;
     });
-    
-    io.emit('loadPlayers', playerList);
 });
 
-http.listen(3001, () => {
-    console.log('listening on *:3001');
+server.listen(3000, function(){
+    console.log("서버 실행중")
 });
-
-module.exports = app;

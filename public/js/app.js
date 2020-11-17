@@ -1,78 +1,74 @@
 
-const renderer = PIXI.autoDetectRenderer(512, 512, {
+const renderer = PIXI.autoDetectRenderer(1280, 720, {
   transparent: true,
   resolution: 1
 });
+
 const stage = new PIXI.Container();
 
 //전역변수
-let userId = 0;
+let yourId = -1;
 let socket;
-let isKeyDown = [];
-
+let playerList = [];
+const keyDown = [];
 
 const setup = function(){
-
   socket = io();
-  socket.emit('newPlayer', userId);
+
+  socket.on('test', (test)=>{
+    console.log(test);
+  });
+
+  socket.emit('join', yourId);
+  socket.on('join', function(userId){
+    yourId = userId;
+
+    for(let i = 0; i< userId + 1; i++){
+      const rect = new PIXI.Rectangle(0, 0, 64, 64);
+      const newTex = new PIXI.Texture(PIXI.loader.resources["spritesheet"].texture, rect);
+      playerList.push(new PIXI.Sprite(newTex));
+      stage.addChild(playerList[i]);
+    }
+  });
+
+  socket.on('load', function(players){
+    if(players.length > playerList.length){
+      for(let i = playerList.length; i< players.length + 1; i++){
+        const rect = new PIXI.Rectangle(0, 0, 64, 64);
+        const newTex = new PIXI.Texture(PIXI.loader.resources["spritesheet"].texture, rect);
+        playerList.push(new PIXI.Sprite(newTex));
+        stage.addChild(playerList[i]);
+      }
+    }
+    if(players.length < playerList.length){
+      playerList = [];
+      stage.removeChildren();
+      for(let i = 0; i< players.length + 1; i++){
+        const rect = new PIXI.Rectangle(0, 0, 64, 64);
+        const newTex = new PIXI.Texture(PIXI.loader.resources["spritesheet"].texture, rect);
+        playerList.push(new PIXI.Sprite(newTex));
+        stage.addChild(playerList[i]);
+      }
+    }
+
+    players.forEach((player)=>{
+      const {userId} = player;
+      playerList[userId].x = player.x;
+      playerList[userId].y = player.y;
+      
+    });
+    console.log(playerList);
+    renderer.render(stage);
+  });
 
   window.addEventListener("keydown",onKeyDown,false);
   window.addEventListener("keyup",onKeyUp,false);
-    function onKeyDown(e){ 
-        isKeyDown[e.keyCode] = true;
-    }
-    function onKeyUp(e){
-        isKeyDown[e.keyCode] = false;
-    }
-  animationLoop();
-
-  // helper function 
-  function animationLoop() {
-    const UP = 38,
-    DOWN = 40,
-    LEFT = 37,
-    RIGHT = 39;
-
-    const rect = PIXI.Rectangle(0, 0, 64, 64);
-    const texture = PIXI.loader.resources["spritesheet"].texture;
-    texture.frame = rect;
-    const sprite = PIXI.Sprite(texture);
-
-    if(isKeyDown[UP]){
-        rect.y = 0 * 64;
-        sprite.y -= sprite.vy;
-    }
-    if(isKeyDown[LEFT]){ 
-        rect.y = 1 * 64;
-        sprite.x -= sprite.vx;
-    }
-    if(isKeyDown[DOWN]){ 
-        rect.y = 2 * 64;
-        sprite.y += sprite.vy;
-    }
-    if(isKeyDown[RIGHT]){ 
-        rect.y = 3 * 64;
-        sprite.x += sprite.vx;
-    }
-    if(isKeyDown[UP] || isKeyDown[LEFT] || isKeyDown[DOWN] || isKeyDown[RIGHT]){
-        if (rect.x >= 64 * 4) rect.x = 0;
-        sprite.texture.frame = rect;
-        rect.x += 64;
-        wait(40);
-    }
-
-    socket.emit('savePlayer', {userId:userId, player:{rect:rect, sprite:sprite}});
-
-    socket.on('loadPlayers', function(players){
-      players.forEach(function (player) {
-        console.log(player);
-      });
-      renderer.render(stage);
-    });
-
-    // a function from Pixi
-    requestAnimationFrame(animationLoop);
-  };  
+  function onKeyDown(e){
+    keyDown[e.keyCode] = true;
+  }
+  function onKeyUp(e){
+    keyDown[e.keyCode] = false;
+  }
 
   function wait(msecs)
   {
@@ -83,7 +79,35 @@ const setup = function(){
     cur = new Date().getTime();
     }
   }
+  animationLoop();
 };
+
+// helper function 
+function animationLoop() {
+    const you = playerList[yourId];
+    let vx = 0;
+    let vy = 0;
+    if(keyDown[38]){
+      vy = -10
+    }
+    if(keyDown[37]){ 
+        vx = -10;
+    }
+    if(keyDown[40]){ 
+        vy = 10;
+    }
+    if(keyDown[39]){ 
+        vx = 10;
+    }
+    if(keyDown[37] || keyDown[38] || keyDown[39] || keyDown[40]){
+      socket.emit('move', {userId: yourId, x: you.x + vx, y: you.y + vy});
+    }
+
+  // a function from Pixi
+  requestAnimationFrame(animationLoop);
+};
+
+//window.addEventListener("load",setup);
 
 //Create a Pixi Application
 let app = new PIXI.Application({width: 1280, height: 720});
@@ -94,5 +118,6 @@ PIXI.loader
   .load(setup);
 
 //Add the canvas that Pixi automatically created for you to the HTML document
-document.body.appendChild(app.view);
+const displayDiv = document.querySelector('#display')
+displayDiv.appendChild(renderer.view);
 
